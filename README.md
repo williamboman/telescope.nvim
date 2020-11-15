@@ -358,7 +358,7 @@ Search on vim buffers list.
 require'telescope.builtin'.help_tags{}
 ```
 
-Search on the helptags in each directory in the runtimepath
+Search on the helptags in each directory in the runtimepath.
 
 #### LSP
 
