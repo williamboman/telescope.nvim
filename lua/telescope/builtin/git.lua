@@ -143,6 +143,29 @@ git.status = function(opts)
   }):find()
 end
 
+
+git.search = function(opts)
+  local args = {"git", "log", "--pretty=oneline", "--abbrev-commit", "-S"}
+  -- local results = vim.split(utils.get_os_command_output(cmd), '\n')
+  local live_grepper = finders.new_job(function(prompt)
+    if not prompt or prompt == "" then return nil end
+    return vim.tbl_flatten {args, prompt}
+
+  end,
+  opts.entry_maker or make_entry.gen_from_git_commits(opts),
+  opts.max_results)
+  pickers.new(opts, {
+    prompt_title = 'Git Search',
+    finder = live_grepper,
+    previewer = previewers.git_commit_diff.new(opts),
+    sorter = conf.file_sorter(opts),
+    attach_mappings = function()
+      actions.goto_file_selection_edit:replace(actions.git_checkout)
+      return true
+    end
+  }):find()
+end
+
 local set_opts_cwd = function(opts)
   if opts.cwd then
     opts.cwd = vim.fn.expand(opts.cwd)
