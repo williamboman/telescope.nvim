@@ -6,6 +6,10 @@ local previewers = require('telescope.previewers')
 local utils = require('telescope.utils')
 local conf = require('telescope.config').values
 
+local scan = require('plenary.scandir')
+local Path = require('plenary.path')
+local os_sep = Path.path.sep
+
 local flatten = vim.tbl_flatten
 
 local files = {}
@@ -184,6 +188,82 @@ local function prepare_match(entry, kind)
 
   return entries
 end
+
+files.file_browser = function(opts)
+  opts = opts or {}
+
+  opts.cwd = opts.cwd and vim.fn.expand(opts.cwd) or vim.loop.cwd()
+
+  local gen_new_finder = function(path)
+    opts.cwd = path
+    local data = {}
+
+    scan.scan_dir(path, {
+      add_dirs = true,
+      depth = 1,
+      on_insert = function(entry, typ)
+        table.insert(data, typ == 'directory' and (entry .. os_sep) or entry)
+      end
+    })
+    table.insert(data, 1, '../')
+
+    return finders.new_table {
+      results = data,
+      entry_maker = (function()
+        local tele_path = require'telescope.path'
+        local gen = make_entry.gen_from_file(opts)
+        return function(entry)
+          local tmp = gen(entry)
+          tmp.ordinal = tele_path.make_relative(entry, opts.cwd)
+          return tmp
+        end
+      end)()
+    }
+  end
+
+  pickers.new(opts, {
+    prompt_title = 'Find Files',
+    finder = gen_new_finder(opts.cwd),
+    previewer = conf.file_previewer(opts),
+    sorter = conf.file_sorter(opts),
+    attach_mappings = function(prompt_bufnr, map)
+      actions._goto_file_selection:replace_if(function()
+        return actions.get_selected_entry().path:sub(-1) == os_sep
+      end, function()
+        local path = actions.get_selected_entry().path
+        actions.refresh(prompt_bufnr, gen_new_finder(vim.fn.expand(path:sub(1, -2))), { reset_prompt = true })
+      end)
+
+      local create_new_file = function()
+        local file = vim.fn.input('Create file or directory(add ' .. os_sep .. ' at the end of file). Enter name: ')
+        if file == "" then return end
+
+        local fpath = actions.get_selected_entry().path
+        if string.sub(fpath, -1) == os_sep then
+          fpath = vim.fn.fnamemodify(fpath, ':h:h')
+        else
+          fpath = vim.fn.fnamemodify(fpath, ':h')
+        end
+
+        fpath = fpath .. os_sep .. file
+
+        if string.sub(fpath, -1) ~= os_sep then
+          actions.close(prompt_bufnr)
+          Path:new(fpath):touch({ parents = true })
+          vim.cmd(string.format(':e %s', fpath))
+        else
+          Path:new(fpath:sub(1, -2)):mkdir({ parents = true })
+          actions.refresh(prompt_bufnr, gen_new_finder(vim.fn.expand(fpath)), { reset_prompt = true })
+        end
+      end
+
+      map('i', '<C-e>', create_new_file)
+      map('n', '<C-e>', create_new_file)
+      return true
+    end,
+  }):find()
+end
+
 
 files.treesitter = function(opts)
   opts.show_line = utils.get_default(opts.show_line, true)

@@ -567,6 +567,8 @@ function Picker:find()
     end
   end
 
+  self.__on_lines = on_lines
+
   on_lines(nil, nil, nil, 0, 1)
   update_status()
 
@@ -754,6 +756,22 @@ function Picker:reset_selection()
   self._selection_row = nil
 
   self.multi_select = {}
+end
+
+function Picker:refresh(finder, opts)
+  if opts.reset_prompt then
+    vim.api.nvim_buf_set_lines(self.prompt_bufnr, 0, -1, false, {})
+    vim.api.nvim_buf_add_highlight(self.prompt_bufnr,
+      ns_telescope_prompt_prefix,
+      'TelescopePromptPrefix',
+      0,
+      0,
+      #self.prompt_prefix
+    )
+  end
+
+  self.finder = finder
+  self.__on_lines(nil, nil, nil, 0, 1)
 end
 
 function Picker:set_selection(row)

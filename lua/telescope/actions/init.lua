@@ -48,6 +48,10 @@ function actions.toggle_selection(prompt_bufnr)
   current_picker:toggle_selection(current_picker:get_selection_row())
 end
 
+function actions.refresh(prompt_bufnr, finder, opts)
+  actions.get_current_picker(prompt_bufnr):refresh(finder, opts)
+end
+
 --- Get the current entry
 function actions.get_selected_entry()
   return state.get_global_key('selected_entry')
@@ -259,28 +263,6 @@ actions.insert_value = function(prompt_bufnr)
   end)
 
   return entry.value
-end
-
-actions.git_checkout = function(prompt_bufnr)
-  local selection = actions.get_selected_entry(prompt_bufnr)
-  actions.close(prompt_bufnr)
-  local val = selection.value
-  os.execute('git checkout ' .. val)
-end
-
-actions.git_staging_toggle = function(prompt_bufnr)
-  local selection = actions.get_selected_entry(prompt_bufnr)
-
-  -- If parts of the file are staged and unstaged at the same time, stage
-  -- changes. Else toggle between staged and unstaged if the file is tracked,
-  -- and between added and untracked if the file is untracked.
-  if selection.status:sub(2) == ' ' then
-    os.execute('git restore --staged ' .. selection.value)
-  else
-    os.execute('git add ' .. selection.value)
-  end
-  do_close(prompt_bufnr, true)
-  require('telescope.builtin').git_status()
 end
 
 local entry_to_qf = function(entry)

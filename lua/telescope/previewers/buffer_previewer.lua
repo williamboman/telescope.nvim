@@ -473,7 +473,7 @@ previewers.git_file_diff = defaulter(function(_)
     end,
 
     define_preview = function(self, entry, status)
-      if entry.status and entry.status == '??' then
+      if entry.status and (entry.status == '??' or entry.status == 'A ') then
         local p = from_entry.path(entry, true)
         if p == nil or p == '' then return end
         conf.buffer_previewer_maker(p, self.state.bufnr, {

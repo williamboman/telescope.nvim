@@ -35,6 +35,14 @@ git.files = function(opts)
   }):find()
 end
 
+local gen_checkout_action = function(cwd)
+  return function(prompt_bufnr)
+    local selection = actions.get_selected_entry(prompt_bufnr)
+    actions.close(prompt_bufnr)
+    utils.get_os_command_output({ 'git', 'checkout', selection.value }, cwd)
+  end
+end
+
 git.commits = function(opts)
   local results = utils.get_os_command_output({ 'git', 'log', '--pretty=oneline', '--abbrev-commit' })
 
@@ -47,7 +55,7 @@ git.commits = function(opts)
     previewer = previewers.git_commit_diff.new(opts),
     sorter = conf.file_sorter(opts),
     attach_mappings = function()
-      actions.goto_file_selection_edit:replace(actions.git_checkout)
+      actions.goto_file_selection_edit:replace(gen_checkout_action(opts.cwd))
       return true
     end
   }):find()
@@ -67,15 +75,13 @@ git.bcommits = function(opts)
     previewer = previewers.git_commit_diff.new(opts),
     sorter = conf.file_sorter(opts),
     attach_mappings = function()
-      actions.goto_file_selection_edit:replace(actions.git_checkout)
+      actions.goto_file_selection_edit:replace(gen_checkout_action(opts.cwd))
       return true
     end
   }):find()
 end
 
 git.branches = function(opts)
-  -- Does this command in lua (hopefully):
-  -- 'git branch --all | grep -v HEAD | sed "s/.* //;s#remotes/[^/]*/##" | sort -u'
   local output = utils.get_os_command_output({ 'git', 'branch', '--all' })
 
   local tmp_results = {}
@@ -97,41 +103,56 @@ git.branches = function(opts)
     finder = finders.new_table {
       results = results,
       entry_maker = function(entry)
-        return {
-          value = entry,
-          ordinal = entry,
-          display = entry,
-        }
+        return { value = entry, ordinal = entry, display = entry }
       end
     },
     previewer = previewers.git_branch_log.new(opts),
     sorter = conf.file_sorter(opts),
     attach_mappings = function()
-      actions.goto_file_selection_edit:replace(actions.git_checkout)
+      actions.goto_file_selection_edit:replace(gen_checkout_action(opts.cwd))
       return true
     end
   }):find()
 end
 
 git.status = function(opts)
-  local output = utils.get_os_command_output{ 'git', 'status', '-s' }
+  local gen_new_finder = function()
+    local output = utils.get_os_command_output{ 'git', 'status', '-s' }
 
-  if table.getn(output) == 0 then
-    print('No changes found')
-    return
+    if table.getn(output) == 0 then
+      print('No changes found')
+      return
+    end
+
+    return finders.new_table {
+      results = output,
+      entry_maker = make_entry.gen_from_git_status(opts)
+    }
   end
+
+  local initial_finder = gen_new_finder()
+  if not initial_finder then return end
 
   pickers.new(opts, {
     prompt_title = 'Git Status',
-    finder = finders.new_table {
-      results = output,
-      entry_maker = make_entry.gen_from_git_status(opts)
-    },
+    finder = initial_finder,
     previewer = previewers.git_file_diff.new(opts),
     sorter = conf.file_sorter(opts),
     attach_mappings = function(_, map)
-      map('i', '<tab>', actions.git_staging_toggle)
-      map('n', '<tab>', actions.git_staging_toggle)
+      local toggle_staging = function(prompt_bufnr)
+        local selection = actions.get_selected_entry()
+
+        if selection.status:sub(2) == ' ' then
+          utils.get_os_command_output({ 'git', 'restore', '--staged', selection.value }, opts.cwd)
+        else
+          utils.get_os_command_output({ 'git', 'add', selection.value }, opts.cwd)
+        end
+        actions.refresh(prompt_bufnr, gen_new_finder())
+
+      end
+
+      map('i', '<tab>', toggle_staging)
+      map('n', '<tab>', toggle_staging)
       return true
     end
   }):find()

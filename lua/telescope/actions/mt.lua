@@ -58,6 +58,38 @@ action_mt.create = function(mod)
     mt._replacements[action_name] = v
   end
 
+  function mt:replace_if(c, v)
+    assert(#self == 1, "Cannot replace an already combined action")
+
+    local action_name = self[1]
+    local og_fun = mod[action_name]
+
+    mt._replacements[action_name] = function(...)
+      if c(...) then
+        return v(...)
+      else
+        return og_fun(...)
+      end
+    end
+  end
+
+  function mt:replace_mod(tbl)
+    assert(#self == 1, "Cannot replace an already combined action")
+
+    local action_name = self[1]
+    local og_fun = mod[action_name]
+
+    mt._replacements[action_name] = function(...)
+      for _, el in ipairs(tbl) do
+        if el[1](...) then
+          return el[2](...)
+        end
+      end
+
+      return og_fun(...)
+    end
+  end
+
   function mt:enhance(opts)
     assert(#self == 1, "Cannot enhance already combined actions")
 
