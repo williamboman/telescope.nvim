@@ -1,6 +1,7 @@
 local entry_display = require('telescope.pickers.entry_display')
 local path = require('telescope.path')
 local utils = require('telescope.utils')
+local strings = require('plenary.strings')
 
 local get_default = utils.get_default
 
@@ -429,7 +430,7 @@ function make_entry.gen_from_buffer(opts)
   local icon_width = 0
   if not disable_devicons then
     local icon, _ = utils.get_devicons('fname', disable_devicons)
-    icon_width = utils.strdisplaywidth(icon)
+    icon_width = strings.strdisplaywidth(icon)
   end
 
   local displayer = entry_display.create {
