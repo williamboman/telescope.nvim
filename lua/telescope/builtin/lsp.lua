@@ -123,12 +123,17 @@ lsp.code_actions = function(opts)
   local idx = 1
   local results = {}
 
-  for _, response in pairs(results_lsp) do
+  for client_id, response in pairs(results_lsp) do
     if response.result then
+      local client = vim.lsp.get_client_by_id(client_id)
+
       for _, result in pairs(response.result) do
-        result.idx = idx
+        table.insert(results, {
+          idx = idx,
+          command = result,
+          client = client,
+        })
         idx = idx + 1
-        table.insert(results, result)
       end
     end
   end
@@ -145,9 +150,20 @@ lsp.code_actions = function(opts)
       entry_maker = function(line)
         return {
           valid = line ~= nil,
-          value = line,
-          ordinal = line.idx .. line.title,
-          display = line.idx .. ': ' .. line.title
+          value = line.command,
+          ordinal = line.idx .. line.command.title,
+          display = line.client
+            and string.format(
+              "%d: (%s) %s",
+              line.idx,
+              line.client.name,
+              line.command.title
+            )
+            or string.format(
+              "%d: %s",
+              line.idx,
+              line.command.title
+            ),
         }
       end
     },
