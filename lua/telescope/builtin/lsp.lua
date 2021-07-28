@@ -380,6 +380,93 @@ local function check_capabilities(feature)
   end
 end
 
+lsp.execute_command = function(opts)
+  local clients = vim.lsp.buf_get_clients(0)
+  local clients_with_commands = vim.tbl_filter(function (client)
+    return client.resolved_capabilities.execute_command == true
+  end, clients)
+
+  if vim.tbl_isempty(clients_with_commands) then
+    print("No LSP commands available")
+    return
+  end
+
+  local idx = 1
+  local commands = {}
+  local widths = {
+    idx = 0,
+    command = 0,
+    client_name = 0,
+  }
+
+  for _, client in pairs(clients_with_commands) do
+    for _, command in pairs(client.server_capabilities.executeCommandProvider.commands) do
+      local entry = {
+        idx = idx,
+        command = command,
+        client_name = client.name,
+        client_id = client.id,
+      }
+
+      for key, value in pairs(widths) do
+        widths[key] = math.max(value, strings.strdisplaywidth(entry[key]))
+      end
+
+      table.insert(commands, entry)
+      idx = idx + 1
+    end
+  end
+
+  local displayer = entry_display.create {
+    separator = " ",
+    items = {
+      { width = widths.idx + 1 }, -- +1 for ":" suffix
+      { width = widths.command },
+      { width = widths.client_name },
+    },
+  }
+
+local function make_display(entry)
+    print(vim.inspect(entry))
+    return displayer {
+      { entry.idx .. ":", "TelescopePromptPrefix" },
+      { entry.command },
+      { entry.client_name, "TelescopeResultsComment" },
+    }
+  end
+
+  pickers.new(opts, {
+    prompt_title = "LSP Commands",
+    finder = finders.new_table {
+      results = commands,
+      entry_maker = function(entry)
+        return {
+          idx = entry.idx,
+          ordinal = entry.idx .. entry.command,
+          command = entry.command,
+          client_name = entry.client_name,
+          client_id = entry.client_id,
+          display = make_display,
+        }
+      end
+    },
+    attach_mappings = function(prompt_bufnr)
+      actions.select_default:replace(function()
+        local selection = action_state.get_selected_entry()
+        actions.close(prompt_bufnr)
+        local val = selection.value
+        local client = vim.lsp.get_client_by_id(val.client_id)
+        client.request("workspace/executeCommand", {
+          command = val.command
+        })
+      end)
+
+      return true
+    end,
+    sorter = conf.generic_sorter(opts),
+  }):find()
+end
+
 local feature_map = {
   ["code_actions"] = "code_action",
   ["document_symbols"] = "document_symbol",
@@ -387,6 +474,7 @@ local feature_map = {
   ["definitions"] = "goto_definition",
   ["implementations"] = "implementation",
   ["workspace_symbols"] = "workspace_symbol",
+  ["execute_command"] = "execute_command",
 }
 
 local function apply_checks(mod)
