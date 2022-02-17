@@ -24,10 +24,18 @@ lsp.references = function(opts)
 
     local locations = {}
     if result then
-      vim.list_extend(
-        locations,
-        vim.lsp.util.locations_to_items(result, vim.lsp.get_client_by_id(ctx.client_id).offset_encoding) or {}
-      )
+      local filtered_result = result
+      if opts.location_bufnrs then
+        local location_uris = {}
+        for _, bufnr in ipairs(opts.location_bufnrs) do
+          location_uris[vim.uri_from_bufnr(bufnr)] = true
+        end
+        filtered_result = vim.tbl_filter(function (location)
+          return location_uris[(location.uri or location.targetUri)]
+        end, result)
+      end
+
+      locations = vim.lsp.util.locations_to_items(filtered_result, vim.lsp.get_client_by_id(ctx.client_id).offset_encoding) or {}
     end
 
     if vim.tbl_isempty(locations) then
